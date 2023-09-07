@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Debug Log Viewer</title>
+  <style>
+    /* Global styling */
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f4f4f4;
+      margin: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 20px;
+    }
+
+    /* Table styling */
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      background-color: #fff;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .table th,
+    .table td {
+      padding: 15px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+
+    .table th {
+      background-color: #333;
+      color: white;
+    }
+
+    .table td.green {
+      color: green;
+    }
+
+    .table td.red {
+      color: red;
+    }
+
+    /* Info blocks */
+    .info-block {
+      margin-bottom: 20px;
+      padding: 20px;
+      background-color: #fff;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .info-block strong {
+      font-size: 1.1em;
+      margin-right: 10px;
+    }
+
+    .info-block img {
+      max-width: 100%;
+    }
+
+    /* File input styling */
+    input[type="file"] {
+      margin-bottom: 20px;
+      background-color: #fff;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+
+    /* Log viewer styling */
+    .log-file-viewer {
+      height: 400px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 20px;
+      background-color: #fff;
+      font-size: 0.9em;
+      font-family: 'Courier New', monospace;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Button styling */
+    #toggleMemoryAllocations {
+      background-color: #333;
+      color: #fff;
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    #toggleMemoryAllocations:hover {
+      background-color: #555;
+    }
+
+    /* Collapsed list */
+    .collapsed {
+      display: none;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="info-block">
+    <img src="emdg.png" alt="EMDG">
+  </div>
+
+  <table class="table">
+    <tr>
+      <th>Crash</th>
+      <th>Laptop GPU</th>
+      <th>Errors</th>
+    </tr>
+    <tr>
+      <td id="crashStatus" class="red"></td>
+      <td id="laptopGPUStatus" class="green"></td>
+      <td id="errorStatus"></td>
+    </tr>
+  </table>
+
+  <div class="info-block">
+    <strong>Suggestion: </strong><span id="suggestionPart"></span>
+  </div>
+
+  <input type="file" id="fileInput">&nbsp;<button id="exportReportButton">Export Report</button>
+
+  <div class="info-block">
+    <p><strong>Graphics System: </strong><span id="graphicsSystem"></span></p>
+    <p><strong>Vision DLL Path: </strong><span id="visionPath"></span></p>
+    <p><strong>Plugins: </strong><span id="pluginsInfo"></span></p>
+    <p><strong>Vision Initializing: </strong><span id="visionInitializing"></span></p>
+    <p><strong>Memory Allocations: </strong><button id="toggleMemoryAllocations">Toggle</button></p>
+    <ul id="memoryAllocations"></ul>
+  </div>
+
+  <div class="info-block">
+    <p><strong>Errors: </strong></p>
+    <ul id="errorList"></ul>
+  </div>
+
+  <div class="info-block">
+    <p><strong>Warnings: </strong></p>
+    <ul id="warningList"></ul>
+  </div>
+
+  <div class="info-block">
+    <p><strong>Last Events: </strong></p>
+    <ul id="beforeEndList"></ul>
+  </div>
+
+  <div class="log-file-viewer" id="logFileViewer"></div>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const crashStatus = document.getElementById("crashStatus");
+    const laptopGPUStatus = document.getElementById("laptopGPUStatus");
+    const errorStatus = document.getElementById("errorStatus");
+    const graphicsSystemElement = document.getElementById("graphicsSystem");
+    const visionPathElement = document.getElementById("visionPath");
+    const pluginsInfoElement = document.getElementById("pluginsInfo");
+    const visionInitializingElement = document.getElementById("visionInitializing");
+    const memoryAllocationsList = document.getElementById("memoryAllocations");
+    const errorList = document.getElementById("errorList");
+    const warningList = document.getElementById("warningList");
+    const toggleMemoryAllocationsButton = document.getElementById("toggleMemoryAllocations");
+    const beforeEndList = document.getElementById("beforeEndList");
+
+    // Function to download text as a file
+function downloadTextAsFile(text, filename) {
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Add a click event listener to the "Export Report" button
+const exportReportButton = document.getElementById("exportReportButton");
+exportReportButton.addEventListener("click", () => {
+  const reportContent = [];
+
+  // Add each section's content to the report
+  reportContent.push(`Crash: ${crashStatus.textContent}`);
+  reportContent.push(`Laptop GPU: ${laptopGPUStatus.textContent}`);
+  reportContent.push(`Errors: ${errorStatus.textContent}`);
+  reportContent.push(`Suggestion: ${suggestionPart.textContent}`);
+  reportContent.push(`Graphics System: ${graphicsSystemElement.textContent}`);
+  reportContent.push(`Vision DLL Path: ${visionPathElement.textContent}`);
+  reportContent.push(`Plugins: ${pluginsInfoElement.textContent}`);
+  reportContent.push(`Vision Initializing: ${visionInitializingElement.textContent}`);
+
+  // Memory Allocations
+  const memoryAllocations = [];
+  const memoryAllocationItems = memoryAllocationsList.querySelectorAll("li");
+  memoryAllocationItems.forEach(item => {
+    memoryAllocations.push(item.textContent);
+  });
+  reportContent.push(`Memory Allocations: ${memoryAllocations.join('\n')}`);
+
+  // Errors
+  const errors = [];
+  const errorItems = errorList.querySelectorAll("li");
+  errorItems.forEach(item => {
+    errors.push(item.textContent);
+  });
+  reportContent.push(`Errors: ${errors.join('\n')}`);
+
+  // Warnings
+  const warnings = [];
+  const warningItems = warningList.querySelectorAll("li");
+  warningItems.forEach(item => {
+    warnings.push(item.textContent);
+  });
+  reportContent.push(`Warnings: ${warnings.join('\n')}`);
+
+  // Last Events
+  const lastEvents = [];
+  const lastEventItems = beforeEndList.querySelectorAll("li");
+  lastEventItems.forEach(item => {
+    lastEvents.push(item.textContent);
+  });
+  reportContent.push(`Last Events: ${lastEvents.join('\n')}`);
+
+  // Combine all sections into one report
+  const reportText = reportContent.join('\n\n');
+
+  // Download the report as a TXT file
+  downloadTextAsFile(reportText, 'report.txt');
+});
+
+    fileInput.addEventListener("change", (event) => {
+      const selectedFile = event.target.files[0];
+
+      if (selectedFile) {
+        const reader = new FileReader();
+
+        reader.onload = function (event) {
+          const logData = event.target.result;
+          let hasCrash = logData.includes("WARNING: global listener object is still registered! Unregister listener before destroying object!");
+          let hasLaptopGPU = logData.includes("UHD");
+          // also if includes "Iris(R)" it is a laptop GPU.
+          hasLaptopGPU = hasLaptopGPU || logData.includes("Iris(R)");
+
+          crashStatus.textContent = hasCrash ? "Yes" : "No";
+          crashStatus.className = hasCrash ? "red" : "green";
+
+          laptopGPUStatus.textContent = hasLaptopGPU ? "Yes" : "No";
+          laptopGPUStatus.className = hasLaptopGPU ? "red" : "green";
+
+          const errorMatches2 = logData.match(/\?ERROR: (.+)/g);
+          if (errorMatches2) {
+            errorStatus.innerHTML = errorMatches2.map(match => {
+              const errorMessage = match.match(/\?ERROR: (.+)/)[1];
+              if (!errorMessage.includes("does not contain version number information.")) {
+                return `<li>${errorMessage}</li>`;
+              }
+            }).filter(Boolean).join('');
+          } else {
+            errorStatus.innerHTML = "No errors found.";
+          }
+
+          const suggestionPart = document.getElementById("suggestionPart");
+
+          // Check for "Data corruption occured" in the logData
+          var suggestionGeneral = "";
+          if (logData.includes("Data corruption occured")) {
+            //suggestionPart.textContent = "4GB Patch Required";
+            suggestionGeneral += "Game corrupting during runtime! 4GB Patch, reinstall or repair REQUIRED! ---- ";
+          } 
+          if (logData.includes("UHD") || logData.includes("Iris")) {
+            //suggestionPart.textContent = "GPU unsupported";
+            suggestionGeneral += "ONBOARD GPU (possibly unsupported!) ---- ";
+          }
+          if (logData.includes("VERR_NOSCREENMODE - Screen mode could not be set")) {
+            //suggestionPart.textContent = "GPU unsupported";
+            suggestionGeneral += "Screen Resolution Corrupted! Either: Adjust Resolution Settings, RUN AS ADMIN, REPAIR CONFIG(!), LOWER(!) Screen Resolution until Game starts  ---- ";
+          }
+
+          const linesC = logData.split('\n');
+          for (let i = 1; i < linesC.length; i++) {
+            if (linesC[i].includes("global listener object is still registered")) {
+              if (linesC[i - 1].includes("Resized memory")) {
+                suggestionGeneral += "Memory issue(!) / NOT ENOUGH MEMORY ASSIGNED! Use 4GB Patch, upgrade memory or increase priority of process ---- ";
+                break; // Exit the loop once the condition is met
+              }
+            }
+          }
+
+          if (suggestionGeneral.length > 0) {
+            suggestionPart.textContent = suggestionGeneral;
+          } else {
+            suggestionPart.textContent = "No specific suggestion.";
+          }
+
+          const graphicsSystemMatch = logData.match(/!Graphics system: (.+)/);
+          if (graphicsSystemMatch) {
+            const graphicsSystemValue = graphicsSystemMatch[1];
+            graphicsSystemElement.textContent = graphicsSystemValue;
+          } else {
+            graphicsSystemElement.textContent = "Graphics system not found.";
+          }
+
+          const visionPathMatch = logData.match(/\|Vision DLL path: (.+)/);
+          if (visionPathMatch) {
+            const visionPathValue = visionPathMatch[1];
+            visionPathElement.textContent = visionPathValue;
+          } else {
+            visionPathElement.textContent = "Vision DLL path not found.";
+          }
+
+          const pluginsFound = logData.includes("|Registering plug-ins done !");
+          if (pluginsFound) {
+            pluginsInfoElement.textContent = "Vision Plugins Found";
+          } else {
+            pluginsInfoElement.textContent = "No Vision Plugins Found.";
+          }
+
+          const visionInitializing = logData.includes("|Initializing Vision Graphics Engine");
+          if (visionInitializing) {
+            visionInitializingElement.textContent = "Vision initializing started";
+          } else {
+            visionInitializingElement.textContent = "Vision initializing not started.";
+          }
+
+          const memoryAllocationMatches = logData.match(/Vision Core: Allocated (\d+) kB of memory for (\w+)/g);
+          if (memoryAllocationMatches) {
+            memoryAllocationsList.innerHTML = memoryAllocationMatches.map(match => {
+              const [, allocatedKb, memoryType] = match.match(/Allocated (\d+) kB of memory for (\w+)/);
+              return `<li>${memoryType}: ${allocatedKb} kB</li>`;
+            }).join('');
+          } else {
+            memoryAllocationsList.innerHTML = "<li>No memory allocations found.</li>";
+          }
+
+          const errorMatches = logData.match(/\?ERROR: (.+)/g);
+          if (errorMatches) {
+            errorList.innerHTML = errorMatches.map(match => {
+              const errorMessage = match.match(/\?ERROR: (.+)/)[1];
+              if (!errorMessage.includes("does not contain version number information.")) {
+                return `<li>${errorMessage}</li>`;
+              }
+            }).filter(Boolean).join('');
+          } else {
+            errorList.innerHTML = "<li>No errors found.</li>";
+          }
+
+          const warningMatches = logData.match(/!WARNING: (.+)/g);
+          if (warningMatches) {
+            warningList.innerHTML = warningMatches.map(match => {
+              const warningMessage = match.match(/!WARNING: (.+)/)[1];
+              return `<li>${warningMessage}</li>`;
+            }).join('');
+          } else {
+            warningList.innerHTML = "<li>No warnings found.</li>";
+          }
+
+          const lines = logData.split('\n');
+          const last5Lines = lines.slice(-5);
+
+          beforeEndList.innerHTML = last5Lines.map(line => `<li>${line}</li>`).join('');
+
+          // Update the log file viewer with the entire logData
+          const logFileViewer = document.getElementById("logFileViewer");
+          logFileViewer.innerHTML = `<pre>${logData}</pre>`;
+        };
+
+        reader.readAsText(selectedFile);
+      } else {
+        crashStatus.textContent = "";
+        laptopGPUStatus.textContent = "";
+        errorStatus.textContent = "";
+
+        graphicsSystemElement.textContent = "";
+        visionPathElement.textContent = "";
+        pluginsInfoElement.textContent = "";
+        visionInitializingElement.textContent = "";
+        memoryAllocationsList.innerHTML = "";
+        errorList.innerHTML = "";
+        warningList.innerHTML = "";
+        beforeEndList.innerHTML = "";
+
+        // Clear the log file viewer when no file is selected
+        const logFileViewer = document.getElementById("logFileViewer");
+        logFileViewer.textContent = "";
+      }
+    });
+
+    toggleMemoryAllocationsButton.addEventListener("click", () => {
+      memoryAllocationsList.classList.toggle("collapsed");
+    });
+  </script>
+</body>
+</html>
