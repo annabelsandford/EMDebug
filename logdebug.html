@@ -452,11 +452,11 @@ exportReportButton.addEventListener("click", () => {
             }
           }
           // Check in either case if game ever made it past the mod loading screen.
-          if (!logData.includes("Freeplay: car accident attachment found")) {
+          if (!logData.includes("Freeplay: car accident attachment found") && !suggestionPart.textContent.includes("Game seems to close naturally ")) {
             if (suggestionPart.textContent == "No specific suggestion.") {
               suggestionPart.textContent = "";
             }
-            suggestionPart.textContent += "Game seems to crash before mod loaded completely ---- ";
+            suggestionPart.textContent += "Is the game crashing before mod loaded completely? ---- ";
           }
 
           beforeEndList.innerHTML = last5Lines.map(line => `<li>${line}</li>`).join('');
