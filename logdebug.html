@@ -111,17 +111,19 @@
 <body>
 
   <div class="info-block">
-    <img src="https://raw.githubusercontent.com/annabelsandford/EMDebug/main/emdg.png" alt="EMDG">
+    <img src="emdg.png" alt="EMDG">
   </div>
 
   <table class="table">
     <tr>
       <th>Crash</th>
-      <th>Laptop GPU</th>
+      <th>Fullscreen</th>
+      <th>Onboard Graphics</th>
       <th>Errors</th>
     </tr>
     <tr>
       <td id="crashStatus" class="red"></td>
+      <td id="fullscreenTable" class="green"></td>
       <td id="laptopGPUStatus" class="green"></td>
       <td id="errorStatus"></td>
     </tr>
@@ -136,8 +138,11 @@
   <div class="info-block">
     <p><strong>Graphics System: </strong><span id="graphicsSystem"></span></p>
     <p><strong>Vision DLL Path: </strong><span id="visionPath"></span></p>
-    <p><strong>Plugins: </strong><span id="pluginsInfo"></span></p>
-    <p><strong>Vision Initializing: </strong><span id="visionInitializing"></span></p>
+    <p><strong>Resolution Mode: </strong><span id="screenMode"></span></p>
+    <p><strong>Screen Mode: </strong><span id="fullscreen"></span></p>
+    <p><strong>Driver Version: </strong><span id="driverVersion"></span></p>
+    <!--<p><strong>Plugins: </strong><span id="pluginsInfo"></span></p>
+    <p><strong>Vision Initializing: </strong><span id="visionInitializing"></span></p>-->
     <p><strong>Memory Allocations: </strong><button id="toggleMemoryAllocations">Toggle</button></p>
     <ul id="memoryAllocations"></ul>
   </div>
@@ -173,6 +178,9 @@
     const warningList = document.getElementById("warningList");
     const toggleMemoryAllocationsButton = document.getElementById("toggleMemoryAllocations");
     const beforeEndList = document.getElementById("beforeEndList");
+    const driverVersionElement = document.getElementById("driverVersion");
+    const screenModeElement = document.getElementById("screenMode");
+    const fullscreenElement = document.getElementById("fullscreen");
 
     // Function to download text as a file
 function downloadTextAsFile(text, filename) {
@@ -199,6 +207,9 @@ exportReportButton.addEventListener("click", () => {
   reportContent.push(`Errors: ${errorStatus.textContent}`);
   reportContent.push(`Suggestion: ${suggestionPart.textContent}`);
   reportContent.push(`Graphics System: ${graphicsSystemElement.textContent}`);
+  reportContent.push(`Screen Mode: ${screenModeElement.textContent}`);
+  reportContent.push(`Fullscreen: ${fullscreenElement.textContent}`);
+  reportContent.push(`Driver Version: ${driverVersionElement.textContent}`);
   reportContent.push(`Vision DLL Path: ${visionPathElement.textContent}`);
   reportContent.push(`Plugins: ${pluginsInfoElement.textContent}`);
   reportContent.push(`Vision Initializing: ${visionInitializingElement.textContent}`);
@@ -252,11 +263,15 @@ exportReportButton.addEventListener("click", () => {
           const logData = event.target.result;
           let hasCrash = logData.includes("WARNING: global listener object is still registered! Unregister listener before destroying object!");
           let hasLaptopGPU = logData.includes("UHD");
+          let hasFullscreen = logData.includes("fullscreen");
           // also if includes "Iris(R)" it is a laptop GPU.
           hasLaptopGPU = hasLaptopGPU || logData.includes("Iris(R)");
 
           crashStatus.textContent = hasCrash ? "Yes" : "No";
           crashStatus.className = hasCrash ? "red" : "green";
+
+          fullscreenTable.textContent = hasFullscreen ? "Yes" : "No";
+          fullscreenTable.className = hasFullscreen ? "green" : "red";
 
           laptopGPUStatus.textContent = hasLaptopGPU ? "Yes" : "No";
           laptopGPUStatus.className = hasLaptopGPU ? "red" : "green";
@@ -265,6 +280,9 @@ exportReportButton.addEventListener("click", () => {
           if (errorMatches2) {
             errorStatus.innerHTML = errorMatches2.map(match => {
               const errorMessage = match.match(/\?ERROR: (.+)/)[1];
+              if (errorMessage.includes("dynlight")) {
+                return `<li>${errorMessage} <b>(Can Be Ignored)</b></li>`;
+              }
               if (!errorMessage.includes("does not contain version number information.")) {
                 return `<li>${errorMessage}</li>`;
               }
@@ -314,6 +332,33 @@ exportReportButton.addEventListener("click", () => {
             graphicsSystemElement.textContent = "Graphics system not found.";
           }
 
+          // check if logfile has "|Setting screen mode to " line, if yes, get rest of line after "|Setting screen mode to "
+          const screenModeMatch = logData.match(/\|Setting screen mode to (.+)/);
+          if (screenModeMatch) {
+            const screenModeValue = screenModeMatch[1];
+            screenModeElement.textContent = screenModeValue;
+          } else {
+            screenModeElement.textContent = "Screen mode not found.";
+          }
+
+          // check if logfile has "|Screen Mode is " line, if yes, get rest of line after "|Screen Mode is "
+          const fullscreenMatch = logData.match(/\|Screen Mode is (.+)/);
+          if (fullscreenMatch) {
+            const fullscreenValue = fullscreenMatch[1];
+            fullscreenElement.textContent = fullscreenValue;
+          } else {
+            fullscreenElement.textContent = "Fullscreen Settings not found.";
+          }
+
+          // check if logfile has "|Driver Version: " line, if yes, get rest of line after "|Driver Version: "
+          const driverVersionMatch = logData.match(/\|Driver Version: (.+)/);
+          if (driverVersionMatch) {
+            const driverVersionValue = driverVersionMatch[1];
+            driverVersionElement.textContent = driverVersionValue;
+          } else {
+            driverVersionElement.textContent = "Driver version not found.";
+          }
+
           const visionPathMatch = logData.match(/\|Vision DLL path: (.+)/);
           if (visionPathMatch) {
             const visionPathValue = visionPathMatch[1];
@@ -322,7 +367,7 @@ exportReportButton.addEventListener("click", () => {
             visionPathElement.textContent = "Vision DLL path not found.";
           }
 
-          const pluginsFound = logData.includes("|Registering plug-ins done !");
+          /* const pluginsFound = logData.includes("|Registering plug-ins done !");
           if (pluginsFound) {
             pluginsInfoElement.textContent = "Vision Plugins Found";
           } else {
@@ -334,7 +379,7 @@ exportReportButton.addEventListener("click", () => {
             visionInitializingElement.textContent = "Vision initializing started";
           } else {
             visionInitializingElement.textContent = "Vision initializing not started.";
-          }
+          } */
 
           const memoryAllocationMatches = logData.match(/Vision Core: Allocated (\d+) kB of memory for (\w+)/g);
           if (memoryAllocationMatches) {
@@ -350,7 +395,11 @@ exportReportButton.addEventListener("click", () => {
           if (errorMatches) {
             errorList.innerHTML = errorMatches.map(match => {
               const errorMessage = match.match(/\?ERROR: (.+)/)[1];
-              if (!errorMessage.includes("does not contain version number information.")) {
+              // if errorMessage includes "dynlight" add "NORMAL" to errormessage
+              if (errorMessage.includes("dynlight")) {
+                return `<li>${errorMessage} <b>(Can Be Ignored)</b></li>`;
+              }
+               if (!errorMessage.includes("does not contain version number information.")) {
                 return `<li>${errorMessage}</li>`;
               }
             }).filter(Boolean).join('');
@@ -362,6 +411,10 @@ exportReportButton.addEventListener("click", () => {
           if (warningMatches) {
             warningList.innerHTML = warningMatches.map(match => {
               const warningMessage = match.match(/!WARNING: (.+)/)[1];
+              // if warning contains "global listener object is still registered"
+              if (warningMessage.includes("global listener object is still registered")) {
+                return `<li>${warningMessage} <b>(CRASH!)</b></li>`;
+              }
               return `<li>${warningMessage}</li>`;
             }).join('');
           } else {
@@ -385,6 +438,7 @@ exportReportButton.addEventListener("click", () => {
         errorStatus.textContent = "";
 
         graphicsSystemElement.textContent = "";
+        screenModeElement.textContent = "";
         visionPathElement.textContent = "";
         pluginsInfoElement.textContent = "";
         visionInitializingElement.textContent = "";
