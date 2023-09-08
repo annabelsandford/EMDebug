@@ -111,7 +111,7 @@
 <body>
 
   <div class="info-block">
-    <img src="https://raw.githubusercontent.com/annabelsandford/EMDebug/main/emdg.png" alt="EMDG">
+    <img src="https://raw.githubusercontent.com/annabelsandford/EMDebug/main/emdg.png" alt="EMDG"><font size="2"><i>BETA 1.3</i></font>
   </div>
 
   <table class="table">
@@ -130,7 +130,7 @@
   </table>
 
   <div class="info-block">
-    <strong>Suggestion: </strong><span id="suggestionPart"></span>
+    <strong>Results / Advice: </strong><span id="suggestionPart"></span>
   </div>
 
   <input type="file" id="fileInput">&nbsp;<button id="exportReportButton">Export Report</button>
@@ -265,7 +265,7 @@ exportReportButton.addEventListener("click", () => {
           let hasLaptopGPU = logData.includes("UHD");
           let hasFullscreen = logData.includes("fullscreen");
           // also if includes "Iris(R)" it is a laptop GPU.
-          hasLaptopGPU = hasLaptopGPU || logData.includes("Iris(R)");
+          hasLaptopGPU = hasLaptopGPU || logData.includes("Iris(R)") || logData.includes("HD Graphics");
 
           crashStatus.textContent = hasCrash ? "Yes" : "No";
           crashStatus.className = hasCrash ? "red" : "green";
@@ -299,7 +299,7 @@ exportReportButton.addEventListener("click", () => {
             //suggestionPart.textContent = "4GB Patch Required";
             suggestionGeneral += "Game corrupting during runtime! 4GB Patch, reinstall or repair REQUIRED! ---- ";
           } 
-          if (logData.includes("UHD") || logData.includes("Iris")) {
+          if (logData.includes("UHD") || logData.includes("Iris") || logData.includes("HD Graphics")) {
             //suggestionPart.textContent = "GPU unsupported";
             suggestionGeneral += "ONBOARD GPU (possibly unsupported!) ---- ";
           }
@@ -424,7 +424,46 @@ exportReportButton.addEventListener("click", () => {
           const lines = logData.split('\n');
           const last5Lines = lines.slice(-5);
 
+          // check if the very last line includes "global listener object is still registered", if yes, console.log("CRASH!") else console.log("NO CRASH!")
+          var reasoning_crash = 1;
+          if (last5Lines[3].includes("global listener object is still registered")) {
+            console.log("EMDebug: Crash apparent! But why??");
+            if (last5Lines[2].includes("VNUM")) {
+              if (suggestionPart.textContent == "No specific suggestion.") {
+                suggestionPart.textContent = "";
+              }
+              suggestionPart.textContent += "Memory issue(!) / NOT ENOUGH MEMORY ASSIGNED! Use 4GB Patch, upgrade memory or increase priority of process ---- ";
+              // Crash because of memory allocation during asset load
+            } else if (last5Lines[2].includes("Data corruption")) {
+              // Crash because of data corruption
+            } else if (last5Lines[2].includes("Destroy")) {
+              if (suggestionPart.textContent == "No specific suggestion.") {
+                suggestionPart.textContent = "";
+              }
+              suggestionPart.textContent += "Game seems to close naturally ---- ";
+            }
+          } else {
+            console.log("EMDebug: Hmm.. no crash apparent. Digging deeper...");
+            if (last5Lines[3].includes("Destroy")) {
+              if (suggestionPart.textContent == "No specific suggestion.") {
+                suggestionPart.textContent = "";
+              }
+              suggestionPart.textContent += "Game seems to close naturally ---- ";
+            }
+          }
+          // Check in either case if game ever made it past the mod loading screen.
+          if (!logData.includes("Freeplay: car accident attachment found")) {
+            if (suggestionPart.textContent == "No specific suggestion.") {
+              suggestionPart.textContent = "";
+            }
+            suggestionPart.textContent += "Game seems to crash before mod loaded completely ---- ";
+          }
+
           beforeEndList.innerHTML = last5Lines.map(line => `<li>${line}</li>`).join('');
+
+          if (beforeEndList.innerHTML.includes("<li></li>")) {
+            beforeEndList.innerHTML = beforeEndList.innerHTML.replace("<li></li>", "");
+          }
 
           // Update the log file viewer with the entire logData
           const logFileViewer = document.getElementById("logFileViewer");
